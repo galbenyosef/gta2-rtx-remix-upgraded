@@ -19,7 +19,7 @@ Both projects are MIT licensed.
 3. **Start `gta2.exe`.**
 
 That's it. Press **F4** in game for the settings panel (the game's own **Options** button opens it too).
-Your player profiles and saves are never touched.
+Installing never touches your player profiles or saves.
 
 **You need:** your own copy of GTA2 (v9.6 is what it was tested on; this project ships no game files), an
 RTX-capable GPU with a current NVIDIA driver, and Windows 10 or 11, 64-bit.
@@ -54,6 +54,17 @@ link to downloads of the game.
 
 The tank turret still uses the original low-resolution art, the 5-star FBI cars are blue instead of black,
 and a few cars still have odd windows. More in the [release notes](../../releases).
+
+## Autosave
+
+The mod saves your game by itself a moment after a big payout (a mission reward, for example), so a crash costs you less.
+This is on by default. To turn it off, press **F4** in game, untick **Save after a big payout** and click **Save**, or
+add these two lines to `gta2dx9_settings.ini` in your GTA2 folder:
+
+```
+[save]
+auto_save=0
+```
 
 ## Uninstall
 

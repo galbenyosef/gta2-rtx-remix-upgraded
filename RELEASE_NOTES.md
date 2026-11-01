@@ -11,7 +11,9 @@ A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 2. **Unzip this release** into the same GTA2 folder. Say yes to replacing files.
 3. **Start the game.** **F4** (or the game's own **Options** button) opens the settings panel.
 
-The zip contains no game files, no RTX Remix binaries and no player profiles. Saves are never touched.
+The zip contains no game files, no RTX Remix binaries and no player profiles, and installing it never touches your saves.
+The mod can autosave after a big payout; to turn that off, untick **Save after a big payout** in the F4 menu and click Save,
+or add `[save]` and `auto_save=0` to `gta2dx9_settings.ini`.
 
 ## Where to get GTA2
 
@@ -28,6 +30,9 @@ link to downloads of the game.
 
 - **Fixed:** the car radio no longer goes silent when you drive away from its source. It now stays in stereo and fades out
   with distance, as intended.
+- **Safer exit helper:** the small helper that closes a game that hangs on exit now runs Windows' own `cmd.exe`, `ping.exe` and
+  `taskkill.exe` by their full system paths, so a look-alike file in the game folder can never be run instead.
+- **Autosave documented:** the README now explains the autosave after big payouts and how to turn it off.
 
 ## What's in it
 

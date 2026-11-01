@@ -403,17 +403,31 @@ DWORD WINAPI QuitWatchdog(LPVOID) {
 // which no thread of ours is left to do anything. A separate process is. This one
 // waits a few seconds and ends the game by process id; if the game has exited by
 // itself by then, taskkill finds nothing and does nothing.
+//
+// Everything it runs is named by its full path under the Windows system folder, and the helper
+// starts with that folder as its working directory. Nothing is looked up through the search path,
+// so a cmd.exe, ping.exe or taskkill.exe that someone has put in the game folder is never run.
 void SpawnQuitKiller() {
-    char command[256];
-    wsprintfA(command, "cmd.exe /c ping -n 6 127.0.0.1 >nul & taskkill /F /PID %lu >nul 2>&1",
-              GetCurrentProcessId());
-    STARTUPINFOA startup = {};
+    wchar_t sysDir[MAX_PATH] = {};
+    const UINT length = GetSystemDirectoryW(sysDir, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH - 20) {
+        Log("quit watchdog: could not find the Windows sysDir folder (error %lu)", GetLastError());
+        return;
+    }
+    wchar_t shell[MAX_PATH] = {};
+    wsprintfW(shell, L"%s\\cmd.exe", sysDir);
+    wchar_t command[1400] = {};
+    // cmd /c "<line>": the outer quotes are removed by cmd, which leaves the two quoted program paths.
+    wsprintfW(command,
+              L"\"%s\" /c \"\"%s\\ping.exe\" -n 6 127.0.0.1 >nul & \"%s\\taskkill.exe\" /F /PID %lu >nul 2>&1\"",
+              shell, sysDir, sysDir, GetCurrentProcessId());
+    STARTUPINFOW startup = {};
     startup.cb = sizeof(startup);
     startup.dwFlags = STARTF_USESHOWWINDOW;
     startup.wShowWindow = SW_HIDE;
     PROCESS_INFORMATION info = {};
-    if (CreateProcessA(nullptr, command, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
-                       nullptr, &startup, &info)) {
+    if (CreateProcessW(shell, command, nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
+                       sysDir, &startup, &info)) {
         CloseHandle(info.hThread);
         CloseHandle(info.hProcess);
         Log("quit watchdog: helper process started, will end the game in ~5 s if it is still there");
