@@ -12,13 +12,13 @@ Both projects are MIT licensed.
 
 ## Install (3 steps)
 
-1. **Install RTX Remix** for x86 games into your GTA2 folder. [Remix Plus 1.5.1](https://github.com/RemixProjGroup/dxvk-remix/releases/tag/remix-plus-1.5.1) is recommended.
-2. **Download** the zip from [Releases](../../releases) and **unzip it into your GTA2 folder** (the one with `gta2.exe`). Say yes to replacing files.
+1. **Install RTX Remix.** Download `Remix_Plus_v1.5.1_x86_games_release.zip` from the **Assets** list at the bottom of the
+   [Remix Plus 1.5.1 release page](https://github.com/RemixProjGroup/dxvk-remix/releases/tag/remix-plus-1.5.1) and unzip it into
+   your GTA2 folder, next to `gta2.exe`. (Without Remix the game starts, but with no ray tracing.)
+2. **Download** the zip from [Releases](../../releases) and **unzip it into your GTA2 folder**. Say yes to replacing files.
 3. **Start `gta2.exe`.**
 
 That's it. Press **F4** in game for the settings panel (the game's own **Options** button opens it too).
-
-Before step 2, copy `d3ddll.dll`, `Dmavideo.dll` and `DMAGlide.dll` somewhere safe so you can undo the install.
 Your player profiles and saves are never touched.
 
 **You need:** your own copy of GTA2 (v9.6 is what it was tested on; this project ships no game files), an
@@ -57,8 +57,9 @@ and a few cars still have odd windows. More in the [release notes](../../release
 
 ## Uninstall
 
-Put your backed-up `d3ddll.dll`, `Dmavideo.dll` and `DMAGlide.dll` back, run `uninstall.reg`, and delete the
-`gta2dx9*` files, `gta2dx9_hd`, `gta2dx9_voice` and `rtx-remix\mods\gta2rtx` and `gta2water`.
+Delete the `gta2dx9*` files, `gta2dx9_hd`, `gta2dx9_voice` and `rtx-remix\mods\gta2rtx` and `gta2water`, and run
+`uninstall.reg`. The install replaced three of GTA2's own files (`d3ddll.dll`, `Dmavideo.dll`, `DMAGlide.dll`), so to get
+the original game back, copy those three from a backup if you made one (optional, before step 2), or reinstall GTA2.
 
 ## Building from source
 

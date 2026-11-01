@@ -5,12 +5,13 @@ A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 
 ## Install
 
-1. Install RTX Remix for x86 games (Remix Plus 1.5.1 recommended) into your GTA2 folder.
-2. Back up `d3ddll.dll`, `Dmavideo.dll` and `DMAGlide.dll`, then unzip this release into the GTA2 folder
-   (the one with `gta2.exe`), replacing them.
-3. Start the game. **F4** (or the game's own **Options** button) opens the settings panel.
+1. **Install RTX Remix:** download `Remix_Plus_v1.5.1_x86_games_release.zip` from the **Assets** list at the bottom of the
+   [Remix Plus 1.5.1 release page](https://github.com/RemixProjGroup/dxvk-remix/releases/tag/remix-plus-1.5.1) and unzip it into your
+   GTA2 folder next to `gta2.exe`. (Without it the game runs, but without ray tracing.)
+2. **Unzip this release** into the same GTA2 folder. Say yes to replacing files.
+3. **Start the game.** **F4** (or the game's own **Options** button) opens the settings panel.
 
-The zip contains no game files, no RTX Remix binaries and no player profiles, and it overwrites none.
+The zip contains no game files, no RTX Remix binaries and no player profiles. Saves are never touched.
 
 ## Where to get GTA2
 
