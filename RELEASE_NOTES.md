@@ -1,4 +1,4 @@
-# GTA2 RTX Remix mod — release notes (draft)
+# GTA2 RTX Upgraded
 
 A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 [gebdag/gta2-rtx-remix](https://github.com/gebdag/gta2-rtx-remix) (MIT). This release adds a hand-made visual layer on top.
@@ -11,6 +11,17 @@ A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 3. Start the game. **F4** (or the game's own **Options** button) opens the settings panel.
 
 The zip contains no game files, no RTX Remix binaries and no player profiles, and it overwrites none.
+
+## Where to get GTA2
+
+GTA2 was officially free for a while: Rockstar gave it away as part of its **Rockstar Classics** series, together with the first
+GTA and Wild Metal Country. That free offer has ended. Rockstar later sold it on its own store (until 2013, according to
+[Delisted Games](https://delistedgames.com/?p=10001)), and Steam removed its GTA2 page in July 2025 without explanation.
+
+So today there is no official place to get it. The game is still easy to find online if you look for it (searching for
+"GTA 2 Rockstar Classics" is a good start), but those copies come from third parties, so use one you trust, or a copy you
+already own (the original CD, or an old Rockstar or Steam purchase). This project ships no game files and does not host or
+link to downloads of the game.
 
 ## What's in it
 
@@ -32,13 +43,3 @@ The zip contains no game files, no RTX Remix binaries and no player profiles, an
 
 MIT. See `gta2dx9_LICENSE.txt` and `gta2dx9_THIRD_PARTY.txt` (Dear ImGui, NVIDIA RTX Remix API headers).
 GTA2 is a trademark and copyright of Rockstar Games / Take-Two. Unofficial fan project.
-
-## Publishing with the GitHub CLI
-
-```bat
-cd /d G:\gta2-rtx-remix-carbodies-src
-git add -A
-git commit -m "Release"
-git push
-gh release create v2026.11.01 "G:\GTA2_RTX_Remix_mod_2026.11.01.zip" --title "GTA2 RTX Remix mod 2026.11.01" --notes-file RELEASE_NOTES.md
-```

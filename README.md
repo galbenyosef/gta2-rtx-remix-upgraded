@@ -24,10 +24,7 @@ Your player profiles and saves are never touched.
 **You need:** your own copy of GTA2 (v9.6 is what it was tested on; this project ships no game files), an
 RTX-capable GPU with a current NVIDIA driver, and Windows 10 or 11, 64-bit.
 
-**Where to get GTA2:** Rockstar once gave it away free as part of Rockstar Classics, but that offer is gone, it has not
-been sold on Rockstar's own store since 2013, and Steam removed its page in July 2025. The game is still easy to find
-online if you look for it, but copies come from third parties, so it is up to you to be comfortable with where yours
-comes from. This repository does not host or link to downloads of the game.
+**Where to get GTA2:** see [Where to get GTA2](#where-to-get-gta2) below.
 
 **Something wrong?** Check `gta2dx9.log` next to `gta2.exe`, and the troubleshooting list in `gta2dx9_README.txt`
 inside the zip.
@@ -41,6 +38,17 @@ inside the zip.
 - Voice packs
 - Everything from the original project: lights from the game's own events, dynamic time of day
   (Remix Plus only), emissive maps, animated water, full 16:9, and 60 fps with frame generation
+
+## Where to get GTA2
+
+GTA2 was officially free for a while: Rockstar gave it away as part of its **Rockstar Classics** series, together with the first
+GTA and Wild Metal Country. That free offer has ended. Rockstar later sold it on its own store (until 2013, according to
+[Delisted Games](https://delistedgames.com/?p=10001)), and Steam removed its GTA2 page in July 2025 without explanation.
+
+So today there is no official place to get it. The game is still easy to find online if you look for it (searching for
+"GTA 2 Rockstar Classics" is a good start), but those copies come from third parties, so use one you trust, or a copy you
+already own (the original CD, or an old Rockstar or Steam purchase). This project ships no game files and does not host or
+link to downloads of the game.
 
 ## Known issues
 
