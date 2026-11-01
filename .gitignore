@@ -16,3 +16,7 @@ release/
 car_sprites/
 ped_sheets/
 pending_lights/
+
+dll/src_backup_before_lights/
+dll/src/*-1.cpp
+dll/src/*-1.h
