@@ -1,0 +1,18 @@
+# Build output
+build/
+build_plain/
+release/
+*.obj
+*.exp
+*.lib
+*.pdb
+*.ilk
+*.dll
+
+# Local shortcuts
+*.lnk
+
+# Extracted game sprites and AI working files (not for publishing)
+car_sprites/
+ped_sheets/
+pending_lights/
