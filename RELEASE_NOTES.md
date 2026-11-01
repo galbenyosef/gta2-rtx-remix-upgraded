@@ -1,4 +1,4 @@
-# GTA2 RTX Upgraded
+# GTA2 RTX Upgraded 1.1
 
 A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 [gebdag/gta2-rtx-remix](https://github.com/gebdag/gta2-rtx-remix) (MIT). This release adds a hand-made visual layer on top.
@@ -23,6 +23,11 @@ So today there is no official place to get it. The game is still easy to find on
 "GTA 2 Rockstar Classics" is a good start), but those copies come from third parties, so use one you trust, or a copy you
 already own (the original CD, or an old Rockstar or Steam purchase). This project ships no game files and does not host or
 link to downloads of the game.
+
+## What's new in 1.1
+
+- **Fixed:** the car radio no longer goes silent when you drive away from its source. It now stays in stereo and fades out
+  with distance, as intended.
 
 ## What's in it
 

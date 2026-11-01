@@ -348,17 +348,32 @@ static __declspec(naked) void RadioVariantThunk() {
     }
 }
 
-// The per-frame downgrade: mov dword ptr [esi+54FCh], 0 (4B2B6B). Stays 1 unless the effect is on.
+// The per-frame downgrade (4B2B6B): in the stereo state, when the signal for the stereo file falls under
+// 0x5A, the game does three things in a row:
+//     mov [esi+54FCh], 0          ; switch to the mono file          (4B2B6B, ten bytes)
+//     mov [esi+54F6h], al         ; the volume it just worked out    (4B2B75)
+//     ... [esi+5506h] = 16..25    ; a mute timer for the file swap   (4B2B7B..4B2B8D)
+// The timer silences the radio while it runs. It is meant to run once, because the next frame the
+// state is already mono. Keeping the stereo file but still running the rest made the timer restart
+// on every frame: the radio went quiet and stayed quiet. So with the effect off, this stub stores the
+// volume and leaves the function (4B2B93: pop esi / ret), skipping the switch and the timer both;
+// with the effect on, it does what the game did and carries on at 4B2B75.
+constexpr uintptr_t kRadioDowngradeSkip = 0x004B2B93;     // pop esi / ret
+constexpr uintptr_t kRadioDowngradeResume = 0x004B2B75;   // the game's own code after the store
 constexpr uintptr_t kRadioDowngrade = 0x004B2B6B;
 const uint8_t kRadioDowngradeBytes[10] = {0xC7, 0x86, 0xFC, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
+// Reached by a jump, not a call: no return address on the stack. al holds the volume.
 static __declspec(naked) void RadioDowngradeThunk() {
     __asm {
-        mov dword ptr [esi + 0x54FC], 1
         cmp byte ptr [g_radioReception], 0
-        je stay
+        jne effect
+        mov byte ptr [esi + 0x54F6], al
+        push 0x004B2B93
+        ret
+    effect:
         mov dword ptr [esi + 0x54FC], 0
-    stay:
+        push 0x004B2B75
         ret
     }
 }
@@ -378,8 +393,9 @@ void RadioInstall() {
     // (4B2AD0): in stereo, when the signal for the stereo file falls under 0x5A it stores 0 (the mono
     // copy), and in mono it goes back to 1 above 0x6E. That is the switching heard while driving, and
     // the store at 4B24E3 alone does not stop it. The downgrade (mov [esi+54FCh], 0 at 4B2B6B, ten
-    // bytes) becomes a call to a stub that leaves the stereo file in place unless the effect is on.
-    // The volume the game works out beside it is left to the game.
+    // bytes) becomes a jump to a stub that, unless the effect is on, keeps the stereo file, stores the
+    // volume and skips the mute timer that follows (see RadioDowngradeThunk). The volume itself is the
+    // game's.
     uint8_t* downgrade = reinterpret_cast<uint8_t*>(kRadioDowngrade);
     const bool haveDowngrade = memcmp(downgrade, kRadioDowngradeBytes, sizeof(kRadioDowngradeBytes)) == 0;
     DWORD previous = 0;
@@ -396,11 +412,11 @@ void RadioInstall() {
         DWORD previous2 = 0;
         if (VirtualProtect(downgrade, 10, PAGE_EXECUTE_READWRITE, &previous2)) {
             const int32_t to2 = static_cast<int32_t>(reinterpret_cast<uintptr_t>(&RadioDowngradeThunk) - (kRadioDowngrade + 5));
-            downgrade[0] = 0xE8;
+            downgrade[0] = 0xE9;
             memcpy(downgrade + 1, &to2, sizeof(to2));
             memset(downgrade + 5, 0x90, 5);
             VirtualProtect(downgrade, 10, previous2, &previous2);
-            Log("radio: the per-frame downgrade to mono is patched too");
+            Log("radio: the per-frame downgrade is patched too (stereo kept, no mute timer)");
         } else {
             Log("radio: could not patch the per-frame downgrade; the stereo file can still drop to mono");
         }
