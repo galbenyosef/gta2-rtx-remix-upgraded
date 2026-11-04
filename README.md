@@ -3,7 +3,12 @@
 GTA2 path-traced with [NVIDIA RTX Remix](https://github.com/NVIDIAGameWorks/rtx-remix), with hand-made HD cars,
 real glass, doors and dents, working lights and new voice packs.
 
-> **Video:** _gameplay video goes here_
+<img width="1751" height="173" alt="gta2 rtx upgraded" src="https://github.com/user-attachments/assets/38adc172-302d-4d7f-b37e-8026d78dd557" />
+
+https://github.com/user-attachments/assets/38f0c67a-ba31-46e7-a305-c5b6cfbde161
+
+<img width="3840" height="2160" alt="Grand Theft Auto 2 2026 11 01 - 12 16 56 07 00_00_15_26 Still002" src="https://github.com/user-attachments/assets/48fe2029-cf81-48f3-a180-14d13b71fd2a" />
+<img width="3840" height="2160" alt="Grand Theft Auto 2 2026 11 01 - 12 16 56 07 00_01_02_47 Still003" src="https://github.com/user-attachments/assets/bbcffc85-eaff-49e3-98c0-7bd6405a21e8" />
 
 This project is an upgrade of **[gebdag/gta2-rtx-remix](https://github.com/gebdag/gta2-rtx-remix)**, the
 Direct3D 9 renderer that makes GTA2 run on RTX Remix. All the renderer work is theirs; thank you.

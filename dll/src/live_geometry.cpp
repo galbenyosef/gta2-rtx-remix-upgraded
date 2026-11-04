@@ -1723,21 +1723,35 @@ float MeanLuma(const std::vector<uint8_t>& bgra) {
 float g_carGlassCurve = 0.6f;   // 0 leaves the glass as flat as the normal maps made it
 std::map<int, HdCar> g_hdCars;
 
+// The glass and normal maps of a hand-made car (PrepareGlass, PrepareNormal) are a lot of
+// arithmetic the first time, and a whole-picture hash every time: on a PC that has never run
+// the mod, each of the 77 cars used to cost the game a stall the first time it turned up. A
+// thread of its own now does that for every car one after another from the first frame on,
+// and the game picks up its answer (which cache files to use) when the car first appears.
+//   0 not started   1 the thread is on it   2 the thread has done it   3 the game took it
+struct HdPrepared {
+    std::wstring normalUsed, roughUsed, metalUsed;
+    bool normalDone = false, glassDone = false;
+};
+constexpr int kHdPrepSprites = 80;
+volatile LONG g_hdPrepState[kHdPrepSprites];
+HdPrepared g_hdPrepared[kHdPrepSprites];
+volatile LONG g_hdPrepStarted = 0;
+
 std::wstring HdDirectory() {
     std::wstring dir = CacheDirectory();
     const size_t slash = dir.find_last_of(L'\\');
     return dir.substr(0, slash) + L"\\gta2dx9_hd";
 }
 
-HdCar& HdFor(int sprite) {
-    HdCar& hd = g_hdCars[sprite];
-    if (hd.tried) return hd;
-    hd.tried = true;
+// Reads one car's hand-made artwork from gta2dx9_hd\ into hd. Used by the game's own thread
+// (HdFor) and by the preparing thread; it touches nothing shared.
+void LoadHdInto(int sprite, HdCar& hd) {
     hd.paintGloss = (sprite >= 0 && sprite < kGlossSprites) ? g_paintGlossCar[sprite] : -1.0f;
     wchar_t name[64];
     const std::wstring dir = HdDirectory();
     swprintf(name, 64, L"\\car_%02d_albedo.dds", sprite);
-    if (!ReadDds(dir + name, &hd.width, &hd.height, &hd.albedo)) return hd;
+    if (!ReadDds(dir + name, &hd.width, &hd.height, &hd.albedo)) return;
     swprintf(name, 64, L"\\car_%02d_normal.dds", sprite);
     hd.normal = dir + name;
     swprintf(name, 64, L"\\car_%02d_rough.dds", sprite);
@@ -1760,6 +1774,40 @@ HdCar& HdFor(int sprite) {
             hd.metalPx.clear();
         }
     }
+}
+
+HdCar& HdFor(int sprite) {
+    HdCar& hd = g_hdCars[sprite];
+    if (hd.tried) return hd;
+    hd.tried = true;
+    // Whether the preparing thread has this car's maps ready. If it is on this very car, wait
+    // for it rather than do the same work twice; if it has not got to it, the game does it
+    // itself as it always did, and the thread skips it.
+    bool prepared = false;
+    if (sprite >= 0 && sprite < kHdPrepSprites) {
+        LONG state = InterlockedCompareExchange(&g_hdPrepState[sprite], 3, 0);
+        if (state == 1) {
+            for (int waited = 0; waited < 30000 && InterlockedCompareExchange(&g_hdPrepState[sprite], 0, 0) == 1; ++waited) {
+                Sleep(1);
+            }
+            state = InterlockedCompareExchange(&g_hdPrepState[sprite], 0, 0);
+        }
+        prepared = state == 2;
+    }
+    LoadHdInto(sprite, hd);
+    if (prepared && hd.ok) {
+        const HdPrepared& p = g_hdPrepared[sprite];
+        if (p.glassDone) {
+            hd.glassPrepared = true;
+            hd.roughUsed = p.roughUsed;
+            hd.metalUsed = p.metalUsed;
+        }
+        if (p.normalDone) {
+            hd.normalPrepared = true;
+            hd.normalUsed = p.normalUsed;
+        }
+    }
+    if (prepared) InterlockedExchange(&g_hdPrepState[sprite], 3);
     return hd;
 }
 
@@ -1778,11 +1826,11 @@ IDirect3DDevice9* g_hdLogoDevice = nullptr;
 // number wears each gang's emblem (-1: none). Set by the [logos] section of the effects ini.
 bool g_roofLogos = true;
 int g_logoCar[kLogoCount] = {-1, 32, 63, 36, 42, 26, 9};   // order of GangLogo: Meteor (Scientists), Karma Bus (Krishna), Bulwark (Russian Mafia)
-float g_logoLumaMax[kLogoCount] = {0, 256, 55, 0, 0, 0, 0};  // >0: only cars whose artwork is darker than this (the black Zaibatsu paint is 48; the next darkest Z-Type paint is 59)
+float g_logoLumaMax[kLogoCount] = {0, 256, 55, 78, 0, 0, 0};  // >0: only cars whose artwork is darker than this (the black Zaibatsu paint is 48; the next darkest Z-Type paint is 59)
 float g_logoSize[kLogoCount] = {0.18f, 0.11f, 0.18f, 0.15f, 0.20f, 0.40f, 0.22f};       // per emblem; the Miara's roof is small
-float g_logoForward[kLogoCount] = {-0.30f, -0.20f, -0.30f, -0.05f, -0.06f, 0.0f, -0.38f};
+float g_logoForward[kLogoCount] = {-0.30f, -0.20f, -0.30f, 0.20f, -0.06f, 0.0f, -0.38f};
 int g_logoTurn[kLogoCount] = {2, 2, 0, 2, 0, 2, 2};  // quarter turns so the artwork stands upright when the car drives up the screen
-float g_logoBlueMin[kLogoCount] = {0, 0, 0, 0, 0, 0, 0};   // >0: only cars whose artwork is at least this much more blue than red
+float g_logoBlueMin[kLogoCount] = {0, 0, 0, 1.20f, 0, 0, 0};   // >0: only cars whose artwork is at least this much more blue than red
 float g_logoLift = 0.004f;         // how far the emblem floats over the roof, in tiles; the higher, the longer its shadow on the roof
 float g_roofLogoSize = 0.18f;      // length of the emblem along the car, in tiles
 float g_roofLogoForward = -0.30f;
@@ -2020,6 +2068,46 @@ void PrepareGlass(HdCar& hd) {
     }
     hd.roughUsed = roughPath;
     hd.metalUsed = metalPath;
+}
+
+// Makes every hand-made car's glass and normal maps (and reads its artwork, so the disk has
+// it in memory when the car turns up), one car at a time, at the lowest priority. Keeps
+// nothing but the names of the files it made; see g_hdPrepState.
+DWORD WINAPI HdPrepareThread(LPVOID) {
+    SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+    Sleep(1500);
+    const DWORD started = GetTickCount();
+    int cars = 0;
+    for (int sprite = 0; sprite < kHdPrepSprites; ++sprite) {
+        if (InterlockedCompareExchange(&g_hdPrepState[sprite], 1, 0) != 0) continue;   // the game has it
+        {
+            HdCar car;
+            LoadHdInto(sprite, car);
+            if (car.ok) {
+                HdPrepared& p = g_hdPrepared[sprite];
+                PrepareGlass(car);
+                p.roughUsed = car.roughUsed;
+                p.metalUsed = car.metalUsed;
+                p.glassDone = true;
+                if (g_carNormalMaps) {
+                    PrepareNormal(car);
+                    p.normalUsed = car.normalUsed;
+                    p.normalDone = true;
+                }
+                ++cars;
+            }
+        }
+        InterlockedExchange(&g_hdPrepState[sprite], 2);
+    }
+    Log("hand-made cars: glass and normal maps ready for %d cars in %.1f s (done off the game's thread)",
+        cars, (GetTickCount() - started) / 1000.0);
+    return 0;
+}
+
+void StartHdPrepare() {
+    if (InterlockedExchange(&g_hdPrepStarted, 1)) return;
+    HANDLE thread = CreateThread(nullptr, 0, HdPrepareThread, nullptr, 0, nullptr);
+    if (thread) CloseHandle(thread);
 }
 
 // Which pixels of a car's sprite the game's door and dent deltas can paint, either
@@ -2906,7 +2994,6 @@ struct DoorMaterial {
     uint32_t born = 0;
 };
 std::map<std::pair<const LampArt*, uint64_t>, DoorMaterial> g_doorMaterials;
-int g_doorMaterialsThisFrame = 0;
 constexpr int kDoorScale = 4;
 
 float g_carDamage = 1.4f;   // how strongly dents show; 0 draws none
@@ -2918,9 +3005,8 @@ float g_carDamage = 1.4f;   // how strongly dents show; 0 draws none
 // paint at that pixel, by how much, and that is laid over the redraw's own colour,
 // repainted. Where the dent changes nothing, nothing is drawn, and nothing outside
 // the body is: the crumpled edge standing out of it only frays the outline.
-bool DamageTexels(const LampArt& art, int sprite, const PaintLook& look,
+bool DamageTexels(const LampArt& art, int sprite, const PaintLook& look, HdCar& hd,
                   std::vector<uint32_t>* out) {
-    HdCar& hd = HdFor(sprite);
     const int w = hd.baseWidth, h = hd.baseHeight;
     if (!hd.ok || w != art.spriteWidth || h != art.spriteHeight ||
         hd.basePx.size() != static_cast<size_t>(w) * h * 4 || w <= 0 || hd.width % w != 0) return false;
@@ -3048,11 +3134,10 @@ float DamageNoise(float x, float y, float cell, uint32_t seed) {
     return top + (bottom - top) * sy;
 }
 
-bool DentOverlayHd(const LampArt& art, int sprite, const PaintLook& look,
+bool DentOverlayHd(const LampArt& art, int sprite, const PaintLook& look, HdCar& hd,
                    std::vector<uint8_t>* bgra, int* outW, int* outH,
                    std::vector<uint8_t>* roughOut, std::vector<uint8_t>* metalOut,
                    std::vector<uint8_t>* normalOut) {
-    HdCar& hd = HdFor(sprite);
     const int w = hd.baseWidth, h = hd.baseHeight;
     if (!hd.ok || w != art.spriteWidth || h != art.spriteHeight ||
         hd.basePx.size() != static_cast<size_t>(w) * h * 4 || w <= 0 || hd.width % w != 0) return false;
@@ -3171,15 +3256,15 @@ bool DentOverlayHd(const LampArt& art, int sprite, const PaintLook& look,
         }
     }
 
-    // The maps the dome is drawn with, so that the patch is made of the same stuff.
-    PrepareGlass(hd);
+    // The maps the dome is drawn with, so that the patch is made of the same stuff. They were
+    // made ready before this thread started (see DoorMaterialFor).
     std::vector<uint8_t> roughPx, metalPx, normalPx;
     int mw = 0, mh = 0;
     const bool haveRough = ReadDds(hd.roughUsed, &mw, &mh, &roughPx) && mw == hd.width && mh == hd.height;
     const bool haveMetal = ReadDds(hd.metalUsed, &mw, &mh, &metalPx) && mw == hd.width && mh == hd.height;
     bool haveNormal = false;
     if (g_carNormalMaps) {
-        haveNormal = ReadDds(PrepareNormal(hd), &mw, &mh, &normalPx) && mw == hd.width && mh == hd.height;
+        haveNormal = hd.normalPrepared && ReadDds(hd.normalUsed, &mw, &mh, &normalPx) && mw == hd.width && mh == hd.height;
     }
 
     bgra->assign(count * 4, 0);
@@ -3282,29 +3367,46 @@ bool DentOverlayHd(const LampArt& art, int sprite, const PaintLook& look,
     return true;
 }
 
-remixapi_MaterialHandle DoorMaterialFor(const LampArt& art, int delta, int sprite,
-                                        const PaintLook& look, bool create) {
-    const auto key = std::make_pair(&art, GainKey(look.tint));
-    const auto found = g_doorMaterials.find(key);
-    if (found != g_doorMaterials.end()) return found->second.handle;
-    if (!create || g_doorMaterialsThisFrame >= 2) return nullptr;
-    ++g_doorMaterialsThisFrame;
-    DoorMaterial& slot = g_doorMaterials[key];
-    slot.failed = true;
+// A door's or a dent's picture is a lot of arithmetic - a dent most of all: planes of
+// floats at the redraw's full size, blurred a dozen times - and it used to be made on the
+// frame a car turned up, for every door and dent it has, which was the stutter whenever a
+// new car appeared. It is made on a thread of its own now, one at a time, and the frame
+// loop only picks up the finished file and makes the material from it (PumpDoorJobs).
+struct DoorJob {
+    std::pair<const LampArt*, uint64_t> key;   // what the material is filed under
+    LampArt art;                               // a copy: a reload of the art cannot pull it from under the thread
+    int delta = 0, sprite = 0;
+    PaintLook look;
+    HdCar* hd = nullptr;                       // read-only to the thread; its maps are prepared before it starts
+    bool cancelled = false;
+    bool started = false;
+    uint32_t asked = 0;                        // the last frame a car wanted it: the newest are made first
+    volatile LONG done = 0;
+    bool ok = false, hdDent = false;
+    uint64_t hash = 0, mapsHash = 0;
+    std::wstring path, dentRoughPath, dentMetalPath, dentNormalPath;
+};
+std::list<std::unique_ptr<DoorJob>> g_doorJobs;
+std::map<std::pair<const LampArt*, uint64_t>, DoorJob*> g_doorPending;
+
+void DoorJobCompute(DoorJob& job) {
+    const LampArt& art = job.art;
+    const int delta = job.delta, sprite = job.sprite;
+    const PaintLook& look = job.look;
     // A dent is shading on the redraw; a door is the game's own art, repainted.
     const bool dent = delta <= 4;
     std::vector<uint32_t> texels;
     std::vector<uint8_t> bgra;
     int W = 0, H = 0;
     std::vector<uint8_t> dentRough, dentMetal, dentNormal;
-    const bool hdDent = dent && DentOverlayHd(art, sprite, look, &bgra, &W, &H, &dentRough, &dentMetal, &dentNormal);
+    const bool hdDent = dent && DentOverlayHd(art, sprite, look, *job.hd, &bgra, &W, &H, &dentRough, &dentMetal, &dentNormal);
     if (!hdDent) {
         if (dent) {
-            if (!DamageTexels(art, sprite, look, &texels)) return nullptr;
+            if (!DamageTexels(art, sprite, look, *job.hd, &texels)) return;
         } else {
             texels = LampTexels(art, false);
         }
-        if (texels.size() != static_cast<size_t>(art.width) * art.height) return nullptr;
+        if (texels.size() != static_cast<size_t>(art.width) * art.height) return;
     }
     const float* gain = look.tint;
     const int w = art.width, h = art.height;
@@ -3354,7 +3456,7 @@ remixapi_MaterialHandle DoorMaterialFor(const LampArt& art, int delta, int sprit
     const std::wstring path = dir + name;
     CacheWarmupNote(path);
     if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES &&
-        !WriteDds(path, W, H, bgra)) return nullptr;
+        !WriteDds(path, W, H, bgra)) return;
 
     // A dent has maps of its own: the paint's roughness and metal where it is scuffed, and
     // the normals of the crumple. Named by what is in them, like the artwork.
@@ -3376,9 +3478,37 @@ remixapi_MaterialHandle DoorMaterialFor(const LampArt& art, int delta, int sprit
             (GetFileAttributesW(dentMetalPath.c_str()) == INVALID_FILE_ATTRIBUTES &&
              !WriteDds(dentMetalPath, W, H, dentMetal)) ||
             (GetFileAttributesW(dentNormalPath.c_str()) == INVALID_FILE_ATTRIBUTES &&
-             !WriteDds(dentNormalPath, W, H, dentNormal))) return nullptr;
+             !WriteDds(dentNormalPath, W, H, dentNormal))) return;
     }
 
+    job.hdDent = hdDent;
+    job.hash = hash;
+    job.mapsHash = mapsHash;
+    job.path = path;
+    job.dentRoughPath = dentRoughPath;
+    job.dentMetalPath = dentMetalPath;
+    job.dentNormalPath = dentNormalPath;
+    job.ok = true;
+}
+
+DWORD WINAPI DoorJobThread(LPVOID param) {
+    DoorJob* j = static_cast<DoorJob*>(param);
+    DoorJobCompute(*j);
+    InterlockedExchange(&j->done, 1);
+    return 0;
+}
+
+// The second half, which has to be on the game's thread: the material from the finished file.
+void FinishDoorJob(DoorJob& j) {
+    DoorMaterial& slot = g_doorMaterials[j.key];
+    slot.failed = true;
+    if (!j.ok) return;
+    const bool hdDent = j.hdDent;
+    const uint64_t hash = j.hash, mapsHash = j.mapsHash;
+    const std::wstring& path = j.path;
+    const std::wstring& dentRoughPath = j.dentRoughPath;
+    const std::wstring& dentMetalPath = j.dentMetalPath;
+    const std::wstring& dentNormalPath = j.dentNormalPath;
     remixapi_MaterialInfoOpaqueEXT opaque = {};
     opaque.sType = REMIXAPI_STRUCT_TYPE_MATERIAL_INFO_OPAQUE_EXT;
     opaque.albedoConstant = {1.0f, 1.0f, 1.0f};
@@ -3408,11 +3538,85 @@ remixapi_MaterialHandle DoorMaterialFor(const LampArt& art, int delta, int sprit
     info.wrapModeV = 2;
     remixapi_MaterialHandle handle = nullptr;
     const remixapi_ErrorCode result = RemixApi()->CreateMaterial(&info, &handle);
-    if (result != REMIXAPI_ERROR_CODE_SUCCESS || !handle) return nullptr;
+    if (result != REMIXAPI_ERROR_CODE_SUCCESS || !handle) return;
     slot.handle = handle;
     slot.failed = false;
     slot.born = g_carFrame;
-    return handle;
+    return;
+}
+
+
+// Called once a frame before the cars are drawn: makes the materials of the pictures that
+// are finished (two a frame at most), and starts the next picture, one at a time.
+void PumpDoorJobs() {
+    int made = 0;
+    bool running = false;
+    for (auto it = g_doorJobs.begin(); it != g_doorJobs.end();) {
+        DoorJob& j = **it;
+        if (j.started && !j.done) { running = true; ++it; continue; }
+        // Cancelled, or for a car nobody has wanted for a minute: dropped.
+        if (j.cancelled || (!j.started && g_carFrame - j.asked > 1800)) {
+            g_doorPending.erase(j.key);
+            it = g_doorJobs.erase(it);
+            continue;
+        }
+        if (j.started && j.done) {
+            if (made >= 2) { ++it; continue; }
+            ++made;
+            FinishDoorJob(j);
+            g_doorPending.erase(j.key);
+            it = g_doorJobs.erase(it);
+            continue;
+        }
+        ++it;
+    }
+    if (running) return;
+    // The one a car asked for most recently, and a door (quick) before a dent (slow).
+    DoorJob* next = nullptr;
+    for (auto& job : g_doorJobs) {
+        if (job->started || job->cancelled) continue;
+        if (!next || job->asked > next->asked ||
+            (job->asked == next->asked && job->delta > 4 && next->delta <= 4)) next = job.get();
+    }
+    if (!next) return;
+    next->started = true;
+    InterlockedExchange(&next->done, 0);
+    HANDLE thread = CreateThread(nullptr, 0, DoorJobThread, next, 0, nullptr);
+    if (thread) {
+        SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
+        CloseHandle(thread);
+    } else {
+        DoorJobThread(next);   // no thread to be had: do it here
+    }
+}
+
+remixapi_MaterialHandle DoorMaterialFor(const LampArt& art, int delta, int sprite,
+                                        const PaintLook& look, bool create) {
+    const auto key = std::make_pair(&art, GainKey(look.tint));
+    const auto found = g_doorMaterials.find(key);
+    if (found != g_doorMaterials.end()) return found->second.handle;
+    if (!create) return nullptr;
+    const auto pending = g_doorPending.find(key);
+    if (pending != g_doorPending.end()) {
+        pending->second->asked = g_carFrame;
+        return nullptr;
+    }
+    // Queued for the thread. Its maps are made ready here (a no-op once the preparing thread
+    // has done them) because the thread only reads them.
+    HdCar& hd = HdFor(sprite);
+    PrepareGlass(hd);
+    if (g_carNormalMaps) PrepareNormal(hd);
+    auto job = std::make_unique<DoorJob>();
+    job->key = key;
+    job->art = art;
+    job->delta = delta;
+    job->sprite = sprite;
+    job->look = look;
+    job->hd = &hd;
+    job->asked = g_carFrame;
+    g_doorPending[key] = job.get();
+    g_doorJobs.push_back(std::move(job));
+    return nullptr;
 }
 
 bool DoorMaterialWarm(const LampArt& art, const PaintLook& look) {
@@ -3493,6 +3697,7 @@ bool DrawCutoutInstance(remixapi_MeshHandle mesh, const D3DMATRIX& world) {
 void ReleaseCarMaterials() {
     for (auto& job : g_carJobs) job->cancelled = true;   // finished and dropped by PumpCarJobs
     // Handles belong to Remix and die with it; only our own bookkeeping goes.
+    for (auto& job : g_doorJobs) job->cancelled = true;
     g_lampMaterials.clear();
     g_doorMaterials.clear();
     g_carMaterials.clear();
@@ -3508,7 +3713,10 @@ void ReleaseLampMaterials() {
     g_lampMaterials.clear();
     g_bloodMaterials.clear();
 }
-void ReleaseDoorMaterials() { g_doorMaterials.clear(); }
+void ReleaseDoorMaterials() {
+    for (auto& job : g_doorJobs) job->cancelled = true;   // finished and dropped by PumpDoorJobs
+    g_doorMaterials.clear();
+}
 
 void SetCarDamage(float strength) {
     g_carDamage = strength < 0.0f ? 0.0f : (strength > 2.0f ? 2.0f : strength);
@@ -3619,10 +3827,10 @@ void FireEffectsLoad(const char* iniPath) {
         g_logoLumaMax[kLogoYakuza] = static_cast<float>(logos("yakuza_max_brightness", 256));
         g_logoLumaMax[kLogoZaibatsu] = static_cast<float>(logos("zaibatsu_max_brightness", 55));
         g_logoCar[kLogoRednecks] = logos("rednecks_car", 36);
-        g_logoLumaMax[kLogoRednecks] = static_cast<float>(logos("rednecks_max_brightness", 0));
-        g_logoBlueMin[kLogoRednecks] = logos("rednecks_blue_min_percent", 0) / 100.0f;
+        g_logoLumaMax[kLogoRednecks] = static_cast<float>(logos("rednecks_max_brightness", 78));
+        g_logoBlueMin[kLogoRednecks] = logos("rednecks_blue_min_percent", 120) / 100.0f;
         g_logoSize[kLogoRednecks] = logos("rednecks_size_percent", 15) / 100.0f;
-        g_logoForward[kLogoRednecks] = logos("rednecks_forward_percent", -5) / 100.0f;
+        g_logoForward[kLogoRednecks] = logos("rednecks_forward_percent", 20) / 100.0f;
         g_logoTurn[kLogoRednecks] = (logos("rednecks_turn_degrees", 180) / 90) & 3;
         // Scientists (Meteor), Hare Krishna (Karma Bus), Russian Mafia (Bulwark).
         g_logoCar[kLogoSrs] = logos("srs_car", 42);
@@ -3737,6 +3945,7 @@ void SetCarHd(bool hd, bool normalMaps) {
 }
 
 void LiveGeometry::BeginFrame() {
+    if (g_carHd && g_carMaterial && !g_hdPrepStarted) StartHdPrepare();
     sprites_.clear();
     shells_.clear();
     lastObject_ = nullptr;
@@ -5073,7 +5282,6 @@ void LiveGeometry::Draw(IDirect3DDevice9* device, const gta2::Camera& camera, in
     if (!device) return;
     DrawStageTimer stageTimer;
     ++g_carFrame;
-    g_doorMaterialsThisFrame = 0;
     g_carMaterialsThisFrame = 0;
 
     // The texture table filled up (see kMaxFrames): empty it before anything of this frame
@@ -5285,6 +5493,7 @@ void LiveGeometry::Draw(IDirect3DDevice9* device, const gta2::Camera& camera, in
     std::vector<IDirect3DTexture9*> shellMatArt(shells_.size(), nullptr);  // what is drawn
     std::vector<char> shellWarm(shells_.size(), 0);
     PumpCarJobs();
+    PumpDoorJobs();
     if (g_carMaterial) {
         for (size_t i = 0; i < shells_.size(); ++i) {
             bool unusedEffect = false;
@@ -6058,7 +6267,29 @@ void LiveGeometry::Draw(IDirect3DDevice9* device, const gta2::Camera& camera, in
             if (wh > halfWide * 0.7f) { hh *= halfWide * 0.7f / wh; wh = halfWide * 0.7f; }
             const float cx = apex.x + dx * g_logoForward[logoId] * halfLong;
             const float cz = apex.z + dz * g_logoForward[logoId] * halfLong;
-            const float cy = apex.y + above * g_logoLift;
+            // The roof is not flat: read the dome's height under the emblem (bilinear over the
+            // lattice) and lay the emblem at the highest point under it, so it sits on the cab
+            // roof instead of sinking into it.
+            auto domeY = [&](float px, float pz) -> float {
+                const float a = ((px - apex.x) * rx + (pz - apex.z) * rz) / (std::max)(halfWide, 1e-6f);
+                const float b = ((px - apex.x) * dx + (pz - apex.z) * dz) / (std::max)(halfLong, 1e-6f);
+                float fi = n * 0.5f + a * n * 0.5f, fj = n * 0.5f + b * n * 0.5f;
+                fi = (std::min)((std::max)(fi, 0.0f), static_cast<float>(n) - 0.001f);
+                fj = (std::min)((std::max)(fj, 0.0f), static_cast<float>(n) - 0.001f);
+                const int i0 = static_cast<int>(fi), j0 = static_cast<int>(fj);
+                const float ti = fi - i0, tj = fj - j0;
+                const float y0 = P(i0, j0).y * (1 - ti) + P(i0 + 1, j0).y * ti;
+                const float y1 = P(i0, j0 + 1).y * (1 - ti) + P(i0 + 1, j0 + 1).y * ti;
+                return y0 * (1 - tj) + y1 * tj;
+            };
+            float roofY = domeY(cx, cz);
+            for (int c = 0; c < 4; ++c) {
+                const float sx4[4] = {-1, 1, 1, -1}, sy4[4] = {-1, -1, 1, 1};
+                const float y = domeY(cx + rx * wh * sx4[c] + dx * hh * sy4[c],
+                                      cz + rz * wh * sx4[c] + dz * hh * sy4[c]);
+                roofY = above > 0 ? (std::max)(roofY, y) : (std::min)(roofY, y);
+            }
+            const float cy = roofY + above * g_logoLift;
             fxSprites.emplace_back();
             Sprite& s = fxSprites.back();
             s.texture = nullptr;

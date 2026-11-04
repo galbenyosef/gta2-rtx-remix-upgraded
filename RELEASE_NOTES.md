@@ -1,4 +1,4 @@
-# GTA2 RTX Upgraded 1.1
+# GTA2 RTX Upgraded 1.2
 
 A Direct3D 9 renderer for GTA2 that lets RTX Remix path-trace the game, built on
 [gebdag/gta2-rtx-remix](https://github.com/gebdag/gta2-rtx-remix) (MIT). This release adds a hand-made visual layer on top.
@@ -26,7 +26,15 @@ So today there is no official place to get it. The game is still easy to find on
 already own (the original CD, or an old Rockstar or Steam purchase). This project ships no game files and does not host or
 link to downloads of the game.
 
-## What's new in 1.1
+## What's new in 1.2
+
+- **Smoother on a fresh install:** the first time a car model or a new paint colour appears, the mod used to stop the game for a
+  moment to build its HD glass maps, door pictures and dents. That work now runs in the background, so new cars and doors no
+  longer cause stalls. The first run on a new PC still has to build its cache, but it no longer freezes the game while doing so.
+- **Fixed:** the Rednecks emblem now appears only on the dark-blue Rednecks pickup, on its cab roof, not on every pickup in
+  stage 2.
+
+## What was new in 1.1
 
 - **Fixed:** the car radio no longer goes silent when you drive away from its source. It now stays in stereo and fades out
   with distance, as intended.
